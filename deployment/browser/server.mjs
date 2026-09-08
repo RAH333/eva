@@ -14,7 +14,9 @@ required('ASSEMBLYAI_API_KEY', 'get one at https://www.assemblyai.com/dashboard/
 // A published id means the agent is managed elsewhere, so use it as it is.
 const AGENT = await (async () => {
   const name = process.env.AGENT || 'minimal'
-  const known = storedAgentId(name)
+  // const known = storedAgentId(name)
+  const known = process.env.AGENT_ID || storedAgentId(name)
+  
   if (known) {
     try {
       const agent = await aai(`/agents/${known}`)
