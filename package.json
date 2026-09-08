@@ -3,14 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Voice agents on the AssemblyAI Voice Agent API: one JSON file, a browser tab or a phone number",
+  "description": "Voice agents on the AssemblyAI Voice Agent API: one JSON file, a browser tool",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "start": "node deployment/browser/server.mjs",
+    "start": "node deployment/browser/server.js",
     "publish": "node publish.mjs",
     "import": "node import.mjs",
-    "phone": "node deployment/telephony/connect.mjs"
+    "phone": "node deployment/telephony/connect.mjs",
+    "build": "node publish.mjs && cd frontend && npm install && npm run build"
   }
 }
