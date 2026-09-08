@@ -15,7 +15,7 @@ required('ASSEMBLYAI_API_KEY', 'get one at https://www.assemblyai.com/dashboard/
 const AGENT = await (async () => {
   const name = 'minimal'
   // Use your working registered Agent ID directly
-  const known = "cdeca51e-3594-4277-a84d-d25259e9c81b"
+  const known = "b8955606-0739-45bc-ac90-b6fb84461e4f"
   
   return { id: known, name: 'Your agent' }
 })()
