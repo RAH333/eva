@@ -11,13 +11,28 @@ import { aai, loadEnv, publishAgent, readAgent, required, storedAgentId } from '
 loadEnv()
 required('ASSEMBLYAI_API_KEY', 'get one at https://www.assemblyai.com/dashboard/api-keys')
 
-// Hardcoded agent profile configuration to prevent runtime environment errors on Vercel
+// A published id means the agent is managed elsewhere, so use it as it is.
 const AGENT = await (async () => {
-  const name = 'minimal'
-  // Use your working registered Agent ID directly
-  const known = "b8955606-0739-45bc-ac90-b6fb84461e4f"
-  
-  return { id: known, name: 'Your agent' }
+  const name = process.env.AGENT || 'minimal'
+  const known = storedAgentId(name)
+  if (known) {
+    try {
+      const agent = await aai(`/agents/${known}`)
+      return { id: known, name: agent.name || 'Your agent' }
+    } catch (error) {
+      console.error(`Could not load agent ${known}: ${error.message}`)
+      process.exit(1)
+    }
+  }
+  const agent = readAgent(name)
+  try {
+    const { id, created } = await publishAgent(agent, { name, reuseByName: true })
+    console.log(`${created ? 'Created' : 'Updated'} "${agent.name}" from agents/${name}.jsonc`)
+    return { id, name: agent.name }
+  } catch (error) {
+    console.error(`Could not publish agents/${name}.jsonc: ${error.message}`)
+    process.exit(1)
+  }
 })()
 
 console.log(`Agent: ${AGENT.id}`)
@@ -51,7 +66,7 @@ const CAPTURE_WORKLET = `
       return pcm;
     }
     process(inputs) {
-      const ch = inputs?.[0]?.[0];
+      const ch = inputs[0]?.[0];
       if (!ch) return true;
       if (this._ratio === 1) {
         const pcm = this._toPcm(ch, ch.length);
@@ -167,7 +182,7 @@ const PLAYBACK_WORKLET = `
 const blobUrl = (code) =>
   URL.createObjectURL(new Blob([code], { type: 'application/javascript' }))
 
-let ws, captureCtx, playbackCtx, playback, mic, callStart, timer, liveReply, printedReply
+let ws, captureCtx, playbackCtx, playback, mic, callStart, timer
 
 // --- microphones ---
 // Labels stay empty until mic permission is granted, so this runs again after
@@ -354,7 +369,7 @@ async function start() {
           logEvent('down', msg.type, msg.delta)
           if (msg.reply_id && msg.reply_id === printedReply) break
           if (msg.reply_id !== liveReply) {
-            liveReply = msg.reply_id;
+            liveReply = msg.reply_id
             dropPartial('agent')
           }
           partial('agent', appendDelta(partialText.agent || '', msg.delta))
@@ -454,11 +469,13 @@ const partialEl = {}
 // The full reply arrives once its audio has been sent, which beats the audio
 // playing out, so deltas keep coming after the line is printed. printedReply
 // stops them rebuilding the same sentence underneath it.
+let liveReply = null
+let printedReply = null
 
 // Deltas arrive with a leading space sometimes and without it other times, so
 // add one only when neither side has one and the delta is not punctuation.
 const ATTACHES_LEFT = /^[.,!?;:%°)\]}…'"’”]/
-const NO_SPACE_AFTER = /[([{$\-\/'"‘...]$/
+const NO_SPACE_AFTER = /[([{$\-\/'"‘“]$/
 
 function appendDelta(text, delta) {
   if (!delta) return text
@@ -593,7 +610,7 @@ const HTML = `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>\${AGENT.name}</title>
+<title>${AGENT.name}</title>
 <style>
   /* Tokens taken from assemblyai.com. The three typefaces are licensed and
      not bundled here, so each falls back the same way the site's own stack
@@ -620,7 +637,7 @@ const HTML = `<!DOCTYPE html>
     --font-mono: "Modern Gothic Mono", "JetBrains Mono", ui-monospace, monospace;
   }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; }
+  html, body { height: 100%; }
   body {
     font-family: var(--font-body); font-size: 16px; line-height: 1.3;
     color: var(--text); background: var(--page-bg); display: flex;
@@ -727,7 +744,7 @@ const HTML = `<!DOCTYPE html>
 <body>
 <main>
   <header>
-    <h1>\${AGENT.name}</h1>
+    <h1>${AGENT.name}</h1>
     <span class="status idle" id="status"><span id="status-text">idle</span></span>
     <span class="meter"><span id="elapsed">0:00</span><span id="cost">$0.000</span></span>
   </header>
@@ -760,7 +777,7 @@ const HTML = `<!DOCTYPE html>
     </section>
   </div>
 </main>
-<script>window.AGENT = \${JSON.stringify(AGENT).replace(/</g, '\\u003c')}</script>
+<script>window.AGENT = ${JSON.stringify(AGENT).replace(/</g, '\\u003c')}</script>
 <script src="/app.js"></script>
 </body>
 </html>`
@@ -782,7 +799,7 @@ function publicAgent(agent) {
 const server = http.createServer(async (req, res) => {
   if (req.url === '/agent') {
     try {
-      const agent = await aai(`/agents/\${AGENT.id}`)
+      const agent = await aai(`/agents/${AGENT.id}`)
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify(publicAgent(agent)))
     } catch (error) {
