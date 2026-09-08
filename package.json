@@ -8,10 +8,10 @@
     "node": ">=18"
   },
   "scripts": {
-    "start": "node deployment/browser/server.js",
+    "start": "cd deployment/browser && node server.mjs",
     "publish": "node publish.mjs",
     "import": "node import.mjs",
     "phone": "node deployment/telephony/connect.mjs",
-    "build": "node publish.mjs && cd frontend && npm install && npm run build"
+    "build": "node publish.mjs && cd deployment/browser && npm install"
   }
 }
