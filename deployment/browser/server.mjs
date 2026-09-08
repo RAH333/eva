@@ -354,7 +354,7 @@ async function start() {
           logEvent('down', msg.type, msg.delta)
           if (msg.reply_id && msg.reply_id === printedReply) break
           if (msg.reply_id !== liveReply) {
-            liveReply = msg.reply_id
+            liveReply = msg.reply_id;
             dropPartial('agent')
           }
           partial('agent', appendDelta(partialText.agent || '', msg.delta))
@@ -458,7 +458,7 @@ const partialEl = {}
 // Deltas arrive with a leading space sometimes and without it other times, so
 // add one only when neither side has one and the delta is not punctuation.
 const ATTACHES_LEFT = /^[.,!?;:%°)\]}…'"’”]/
-const NO_SPACE_AFTER = /[([{$\-\/'"‘“]$/
+const NO_SPACE_AFTER = /[([{$\-\/'"‘...]$/
 
 function appendDelta(text, delta) {
   if (!delta) return text
@@ -732,6 +732,7 @@ const HTML = `<!DOCTYPE html>
     <span class="meter"><span id="elapsed">0:00</span><span id="cost">$0.000</span></span>
   </header>
 
+  <div class="panes">
     <section class="pane">
       <div class="pane-head"><span>Transcript</span></div>
       <div class="pane-body" id="transcript">
