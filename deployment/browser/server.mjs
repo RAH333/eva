@@ -11,28 +11,13 @@ import { aai, loadEnv, publishAgent, readAgent, required, storedAgentId } from '
 loadEnv()
 required('ASSEMBLYAI_API_KEY', 'get one at https://www.assemblyai.com/dashboard/api-keys')
 
-// A published id means the agent is managed elsewhere, so use it as it is.
+// Hardcoded agent profile configuration to prevent runtime environment errors on Vercel
 const AGENT = await (async () => {
-  const name = process.env.AGENT || 'minimal'
-  const known = storedAgentId(name)
-  if (known) {
-    try {
-      const agent = await aai(`/agents/${known}`)
-      return { id: known, name: agent.name || 'Your agent' }
-    } catch (error) {
-      console.error(`Could not load agent ${known}: ${error.message}`)
-      process.exit(1)
-    }
-  }
-  const agent = readAgent(name)
-  try {
-    const { id, created } = await publishAgent(agent, { name, reuseByName: true })
-    console.log(`${created ? 'Created' : 'Updated'} "${agent.name}" from agents/${name}.jsonc`)
-    return { id, name: agent.name }
-  } catch (error) {
-    console.error(`Could not publish agents/${name}.jsonc: ${error.message}`)
-    process.exit(1)
-  }
+  const name = 'minimal'
+  // Use your working registered Agent ID directly
+  const known = "cdeca51e-3594-4277-a84d-d25259e9c81b"
+  
+  return { id: known, name: 'Your agent' }
 })()
 
 console.log(`Agent: ${AGENT.id}`)
@@ -66,7 +51,7 @@ const CAPTURE_WORKLET = `
       return pcm;
     }
     process(inputs) {
-      const ch = inputs[0]?.[0];
+      const ch = inputs?.[0]?.[0];
       if (!ch) return true;
       if (this._ratio === 1) {
         const pcm = this._toPcm(ch, ch.length);
@@ -182,7 +167,7 @@ const PLAYBACK_WORKLET = `
 const blobUrl = (code) =>
   URL.createObjectURL(new Blob([code], { type: 'application/javascript' }))
 
-let ws, captureCtx, playbackCtx, playback, mic, callStart, timer
+let ws, captureCtx, playbackCtx, playback, mic, callStart, timer, liveReply, printedReply
 
 // --- microphones ---
 // Labels stay empty until mic permission is granted, so this runs again after
@@ -469,13 +454,11 @@ const partialEl = {}
 // The full reply arrives once its audio has been sent, which beats the audio
 // playing out, so deltas keep coming after the line is printed. printedReply
 // stops them rebuilding the same sentence underneath it.
-let liveReply = null
-let printedReply = null
 
 // Deltas arrive with a leading space sometimes and without it other times, so
 // add one only when neither side has one and the delta is not punctuation.
-const ATTACHES_LEFT = /^[.,!?;:%°)\]}…'"’”]/
-const NO_SPACE_AFTER = /[([{$\-\/'"‘“]$/
+const ATTACHES_LEFT = /^[.,!?;:%Â°)\]}â€¦'"â€™â€]/
+const NO_SPACE_AFTER = /[([{$\-\/'"â€˜â€œ]$/
 
 function appendDelta(text, delta) {
   if (!delta) return text
@@ -556,7 +539,7 @@ function eventRow(direction, type, detail) {
   at.textContent = (callStart ? (Date.now() - callStart) / 1000 : 0).toFixed(1) + 's'
   const arrow = document.createElement('span')
   arrow.className = 'dir'
-  arrow.textContent = direction === 'up' ? '↑' : '↓'
+  arrow.textContent = direction === 'up' ? 'â†‘' : 'â†“'
   const name = document.createElement('span')
   name.className = 'type'
   name.textContent = type
@@ -574,7 +557,7 @@ function paint(live, final) {
   const now = performance.now()
   if (!final && now - live.painted < 100) return
   live.painted = now
-  live.row.querySelector('.count').textContent = live.count > 1 ? '×' + live.count : ''
+  live.row.querySelector('.count').textContent = live.count > 1 ? 'Ã—' + live.count : ''
   if (live.detail) live.row.querySelector('.detail').textContent = live.detail
 }
 
@@ -610,7 +593,7 @@ const HTML = `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${AGENT.name}</title>
+<title>\${AGENT.name}</title>
 <style>
   /* Tokens taken from assemblyai.com. The three typefaces are licensed and
      not bundled here, so each falls back the same way the site's own stack
@@ -637,208 +620,4 @@ const HTML = `<!DOCTYPE html>
     --font-mono: "Modern Gothic Mono", "JetBrains Mono", ui-monospace, monospace;
   }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; }
-  body {
-    font-family: var(--font-body); font-size: 16px; line-height: 1.3;
-    color: var(--text); background: var(--page-bg); display: flex;
-    flex-direction: column; align-items: center; padding: 24px 20px 20px;
-  }
-  main { width: 100%; max-width: 1088px; flex: 1; display: flex;
-         flex-direction: column; min-height: 0; gap: 16px; }
-
-  /* .eyebrow on the site: mono, 12px, uppercase, 1.2px tracking. */
-  .eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 1.2px;
-             text-transform: uppercase; font-feature-settings: "ss09" 1; }
-
-  header { display: flex; align-items: center; gap: 16px;
-           padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-  h1 { font-family: var(--font-display); font-size: 24px; font-weight: 400;
-       letter-spacing: -1.2px; line-height: 1; color: var(--text-dark);
-       margin-right: auto; }
-  .status { display: flex; align-items: center; gap: 8px; color: var(--text-muted); }
-  .status::before { content: ""; width: 7px; height: 7px; border-radius: 50%;
-                    background: currentColor; flex-shrink: 0; }
-  .status.listening { color: var(--green-500); }
-  .status.speaking { color: var(--cobolt-500); }
-  .status.error { color: var(--error); text-transform: none; letter-spacing: 0;
-                  font-family: var(--font-body); font-size: 14px; }
-  .status.listening::before, .status.speaking::before {
-    animation: pulse 1.6s ease-in-out infinite; }
-  @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: .25 } }
-  .meter { display: flex; gap: 10px; font-family: var(--font-mono); font-size: 12px;
-           color: var(--text-faint); }
-  #elapsed { min-width: 34px; text-align: right; }
-  #cost { min-width: 48px; text-align: right; }
-
-  .panes { flex: 1; min-height: 0; display: grid; gap: 16px;
-           grid-template-columns: 1fr 360px; }
-  body.no-side .panes { grid-template-columns: 1fr; }
-  body.no-side #side { display: none; }
-  [hidden] { display: none !important; }
-  @media (max-width: 880px) {
-    .panes { grid-template-columns: 1fr; grid-template-rows: 1fr 176px; }
-    body.no-side .panes { grid-template-rows: 1fr; }
-  }
-
-  .pane { display: flex; flex-direction: column; min-height: 0;
-          background: var(--surface); border: 1px solid var(--border);
-          border-radius: var(--radius-lg); overflow: hidden; }
-  .pane-head { display: flex; align-items: center; justify-content: space-between;
-               gap: 16px; padding: 10px 16px; background: var(--surface-alt);
-               border-bottom: 1px solid var(--border); color: var(--text-muted); }
-  .pane-body { flex: 1; overflow-y: auto; padding: 16px; }
-  .empty { color: var(--text-faint); font-size: 14px; line-height: 1.4; }
-
-  #transcript { display: flex; flex-direction: column; gap: 12px; }
-  .line { display: flex; gap: 12px; font-size: 16px; line-height: 1.4; }
-  .who { color: var(--text-faint); padding-top: 3px; flex-shrink: 0; width: 88px;
-         overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .line.agent .said { color: var(--text-dark); }
-  .line.partial .said { color: var(--text-muted); }
-  .line.tool { font-family: var(--font-mono); font-size: 13px;
-               color: var(--cobolt-500); }
-  .line.tool .said { word-break: break-all; }
-
-  #events-body { font-family: var(--font-mono); font-size: 12px; line-height: 1.8; }
-  .event { display: flex; gap: 8px; align-items: baseline; white-space: nowrap; }
-  .event .at { color: var(--text-faint); min-width: 44px; text-align: right;
-               flex-shrink: 0; }
-  .event .dir, .event .count { color: var(--text-faint); flex-shrink: 0; }
-  .event .count:empty, .event .detail:empty { display: none; }
-  .event .type { flex-shrink: 0; color: var(--text-dark); }
-  .event.up .type { color: var(--text-muted); }
-  .event .detail { color: var(--text-faint); overflow: hidden; white-space: nowrap;
-                   text-overflow: ellipsis; }
-
-  .pane-foot { display: flex; gap: 8px; align-items: center; padding: 12px 16px;
-               background: var(--surface-alt); border-top: 1px solid var(--border); }
-  /* .cta-primary on the site: cobolt fill, mono uppercase 14px, 1.4px
-     tracking, 40px tall, 4px radius, lightening on hover. */
-  button { height: 40px; padding: 0 24px; margin-left: auto; border: none;
-           border-radius: var(--radius-sm); background: var(--cobolt-500);
-           color: #fff; font-family: var(--font-mono); font-size: 14px;
-           letter-spacing: 1.4px; text-transform: uppercase; white-space: nowrap;
-           cursor: pointer; transition: background-color .2s; }
-  button:hover:not(:disabled) { background: var(--cobolt-300); }
-  button:disabled { opacity: .55; cursor: default; }
-  button.live { background: var(--error); }
-  button.live:hover { background: #f4695f; }
-  select { flex: 0 1 220px; min-width: 0; height: 40px; padding: 0 8px;
-           font-family: var(--font-body); font-size: 13px; color: var(--text-muted);
-           background: var(--surface); border: 1px solid var(--border);
-           border-radius: var(--radius-sm); }
-  select:disabled { color: var(--text-faint); }
-  /* Text button, sized to sit inside the pane header. */
-  .ghost { height: auto; margin-left: 0; padding: 0; background: transparent;
-           color: var(--text-faint); font-size: 12px; letter-spacing: 1.2px; }
-  .ghost:hover:not(:disabled) { background: transparent; color: var(--cobolt-500); }
-  .tabs { display: flex; gap: 16px; }
-  .tab.on { color: var(--text-dark); }
-
-  /* Read-only view of the agent as the API stored it. */
-  #agent-body pre { font-family: var(--font-mono); font-size: 12px;
-                    line-height: 1.6; color: var(--text); white-space: pre-wrap;
-                    word-break: break-word; }
-</style>
-</head>
-<body>
-<main>
-  <header>
-    <h1>${AGENT.name}</h1>
-    <span class="status idle" id="status"><span id="status-text">idle</span></span>
-    <span class="meter"><span id="elapsed">0:00</span><span id="cost">$0.000</span></span>
-  </header>
-
-  <div class="panes">
-    <section class="pane">
-      <div class="pane-head"><span>Transcript</span></div>
-      <div class="pane-body" id="transcript">
-        <div class="empty">Start the call and talk. Partial transcripts appear as they stream, and tool calls show up inline.</div>
-      </div>
-      <div class="pane-foot">
-        <select id="mic" aria-label="Microphone"><option value="">Default microphone</option></select>
-        <button id="btn">Start call</button>
-      </div>
-    </section>
-    <section class="pane" id="side">
-      <div class="pane-head">
-        <span class="tabs">
-          <button class="ghost tab on" id="tab-events">Events</button>
-          <button class="ghost tab" id="tab-agent">Agent</button>
-        </span>
-        <button class="ghost" id="log-toggle">Hide</button>
-      </div>
-      <div class="pane-body" id="events-body">
-        <div class="empty">Every websocket frame, both directions. Repeats collapse into a count.</div>
-      </div>
-      <div class="pane-body" id="agent-body" hidden>
-        <div class="empty">Loading the published agent.</div>
-      </div>
-    </section>
-  </div>
-</main>
-<script>window.AGENT = ${JSON.stringify(AGENT).replace(/</g, '\\u003c')}</script>
-<script src="/app.js"></script>
-</body>
-</html>`
-
-// --- server ----------------------------------------------------------------
-
-// Read-only view of the stored agent. The API keeps header values and llm keys
-// write-only; these deletes hold even if that changes. The system prompt is in
-// here, so a public deployment shows it to anyone who opens the page.
-function publicAgent(agent) {
-  const copy = structuredClone(agent)
-  for (const tool of copy.tools ?? []) {
-    for (const header of tool.http?.headers ?? []) header.value = '<hidden>'
-  }
-  for (const llm of copy.llm ?? []) delete llm.api_key
-  return copy
-}
-
-const server = http.createServer(async (req, res) => {
-  if (req.url === '/agent') {
-    try {
-      const agent = await aai(`/agents/${AGENT.id}`)
-      res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify(publicAgent(agent)))
-    } catch (error) {
-      console.error(error.message)
-      res.writeHead(502, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ error: 'could not load the agent' }))
-    }
-    return
-  }
-  if (req.url === '/token') {
-    try {
-      const token = await aai('/token?product=voice_agent&expires_in_seconds=60')
-      res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify(token))
-    } catch (error) {
-      console.error(error.message)
-      res.writeHead(502, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ error: 'token request failed' }))
-    }
-    return
-  }
-  if (req.url === '/app.js') {
-    res.writeHead(200, { 'content-type': 'text/javascript' })
-    res.end('(' + clientApp.toString() + ')();')
-    return
-  }
-  res.writeHead(200, { 'content-type': 'text/html' })
-  res.end(HTML)
-})
-
-// PORT when set, otherwise 3000 and up until one is free.
-let port = Number(process.env.PORT) || 3000
-server.on('error', (err) => {
-  if (err.code === 'EADDRINUSE' && !process.env.PORT && port < 3010) {
-    port += 1
-    server.listen(port)
-    return
-  }
-  throw err
-})
-server.on('listening', () => console.log(`Talk to it: http://localhost:${port}`))
-server.listen(port)
+  
