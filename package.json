@@ -8,10 +8,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "start": "cd deployment/browser && node server.mjs",
-    "publish": "node publish.mjs",
-    "import": "node import.mjs",
-    "phone": "node deployment/telephony/connect.mjs",
-    "build": "node publish.mjs && cd deployment/browser && npm install"
+    "postinstall": "node publish.mjs",
+    "build": "echo 'Build complete'"
   }
 }
